@@ -8,11 +8,9 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	//"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	//"fyne.io/fyne/v2/data/binding"
 	xtheme "fyne.io/x/fyne/theme"
 	xlayout "fyne.io/x/fyne/layout"
 	"github.com/lusingander/colorpicker"
@@ -60,14 +58,9 @@ func main() {
 
 	w := a.NewWindow("Controle de LED")
 
-	// String binding for the current program
-	//bndProgram := binding.NewString()
-	//bndProgram.Set("Desconhecido")
-
 	// Global function for refreshing the global state
 	refreshState := func(m wsclient.Model) {
 		gstatus = m
-		//bndProgram.Set(wsclient.GetProgramName(m.Program))
 	}
 
 	// Active/inactive checkbox
@@ -132,10 +125,6 @@ func main() {
 				refreshState(res)
 			}
 		})
-
-	// Label representing the current program. Uses data binding.
-	//lblProgram := widget.NewLabelWithData(bndProgram)
-	//lblProgram.TextStyle = fyne.TextStyle{Italic: true}
 
 	// Button for cycling the current program
 	btnChangeProgram := widget.NewButtonWithIcon(
@@ -212,21 +201,20 @@ func main() {
 
 	// Some labels
 	lblIntensidade := widget.NewLabel("Intensidade:")
-	lblProgramacao := widget.NewLabel("Comportamento:")
+	lblProgramacao := widget.NewLabel("Programa:")
 
 	// Responsive layout within the application
 	l := xlayout.NewResponsiveLayout(
 		xlayout.Responsive(chkBlink, .35, .35),
 		xlayout.Responsive(widget.NewLabel(""), .65, .65),
 
+		xlayout.Responsive(lblProgramacao, .35, .35),
+		xlayout.Responsive(cmbProgram, .55, .55),
+		xlayout.Responsive(btnChangeProgram, .1, .1),
+
 		xlayout.Responsive(lblIntensidade, 1, .35),
 		xlayout.Responsive(sldDim, 1, .65),
 
-		xlayout.Responsive(lblProgramacao, .35, .35),
-		//xlayout.Responsive(cmbProgram, 1, .55),
-		//xlayout.Responsive(lblProgram, .55, .55),
-		xlayout.Responsive(cmbProgram, .55, .55),
-		xlayout.Responsive(btnChangeProgram, .1, .1),
 		xlayout.Responsive(widget.NewLabel(""), 1, 1),
 
 		xlayout.Responsive(picker, 1, 1),
