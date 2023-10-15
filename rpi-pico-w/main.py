@@ -6,6 +6,7 @@ import network
 import socket
 import select
 import struct
+import binascii
 
 # Definitions for pins
 pin = Pin(28)
@@ -13,7 +14,7 @@ button = Pin(3, Pin.IN, Pin.PULL_DOWN)
 
 # Definitions for NeoPixel LEDs
 np = NeoPixel(pin, 30)
-programming = 0
+programming = 2          # Default to lamp
 
 # Definitions for WiFi
 SSID   = 'CHANGEME'
@@ -108,12 +109,15 @@ def set_color(colorstr):
     global prog2_color
     print(f'set color: {colorstr}')
     try:
-        prog2_color = struct.unpack('BBB', colorstr.decode('hex'))
+        r, g, b = bytes.fromhex(colorstr)
+        prog2_color = (r, g, b)
     except:
         pass
 
+# Change current program
 def set_program(programstr):
     global programming
+    print(f'set program: {programstr}')
     try:
         prog = int(programstr)
         if (prog >= 0) and (prog < 3):
@@ -166,11 +170,11 @@ def respond_status(client):
     global programming
     global prog2_color
     value = 'true' if blinking else 'false'
-    color = struct.pack('BBB', *prog2_color).encode('hex')
+    color = binascii.hexlify(struct.pack('BBB', *prog2_color)).decode('utf-8')
     client.send('HTTP/1.1 200 OK\r\n')
     client.send('Content-Type: application/json\r\n')
     client.send('Connection: close\r\n')
-    client.send(f'\n\r{{"blinking": {value}, "program": {programming}, "dim": {dim}, "color": {color}}}\r\n')
+    client.send(f'\n\r{{"blinking": {value}, "program": {programming}, "dim": {dim}, "color": "{color}"}}\r\n')
 
 def respond_notfound(client):
     client.send('HTTP/1.1 404 Not Found\r\n')
