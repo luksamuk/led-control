@@ -171,7 +171,7 @@ func main() {
 		"Atualizar Tudo",
 		theme.ViewRefreshIcon(),
 		refreshAll)
-
+ 
 	btnResetColor := widget.NewButtonWithIcon(
 		"Resetar Cor",
 		theme.ContentUndoIcon(),
@@ -212,8 +212,8 @@ func main() {
 		xlayout.Responsive(cmbProgram, .55, .55),
 		xlayout.Responsive(btnChangeProgram, .1, .1),
 
-		xlayout.Responsive(lblIntensidade, 1, .35),
-		xlayout.Responsive(sldDim, 1, .65),
+		xlayout.Responsive(lblIntensidade, 1, 1),
+		xlayout.Responsive(sldDim, 1, 1),
 
 		xlayout.Responsive(widget.NewLabel(""), 1, 1),
 
