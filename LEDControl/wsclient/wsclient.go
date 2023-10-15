@@ -96,6 +96,10 @@ func SetDimmer(value float64) (Model, error) {
 }
 
 func SetColor(c color.Color) (Model, error) {
+	col := ColorToHex(c)
+	if col == "000000" {
+		return Model{}, errors.New("#000000 será sempre ignorado")
+	}
 	url := fmt.Sprintf("%s/color/%s", BASEURL, ColorToHex(c))
 	log.Printf("POST %s", url)
 	res, err := http.Post(url, "", nil)

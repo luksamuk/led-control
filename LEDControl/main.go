@@ -184,6 +184,9 @@ func main() {
 			picker.SetColor(white)
 		})
 
+	// This is a goroutine that works just like the one for the dimmer. But
+	// this time, we are responsibly changing colors in a way that does not
+	// do an enormous amount of load to the remote device
 	go func() {
 		for {
 			if gotFirstValues {
@@ -192,7 +195,7 @@ func main() {
 					res, err := wsclient.SetColor(lastColorValue)
 					if err != nil {
 						log.Printf("Erro: %v", err)
-						return
+						continue
 					}
 					refreshState(res)
 				}
