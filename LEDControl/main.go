@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"fyne.io/fyne/v2/data/binding"
+	//"fyne.io/fyne/v2/data/binding"
 	xtheme "fyne.io/x/fyne/theme"
 	xlayout "fyne.io/x/fyne/layout"
 	"github.com/lusingander/colorpicker"
@@ -61,13 +61,13 @@ func main() {
 	w := a.NewWindow("Controle de LED")
 
 	// String binding for the current program
-	bndProgram := binding.NewString()
-	bndProgram.Set("Desconhecido")
+	//bndProgram := binding.NewString()
+	//bndProgram.Set("Desconhecido")
 
 	// Global function for refreshing the global state
 	refreshState := func(m wsclient.Model) {
 		gstatus = m
-		bndProgram.Set(wsclient.GetProgramName(m.Program))
+		//bndProgram.Set(wsclient.GetProgramName(m.Program))
 	}
 
 	// Active/inactive checkbox
@@ -120,16 +120,22 @@ func main() {
 		}
 	}()
 
-	// cmbProgram := widget.NewSelect(
-	// 	[]string{"Natal", "Rastro", "Lâmpada"},
-	// 	func(option string) {
-	// 		log.Print("Opção: ", option)
-	// 		if gotFirstValues {}
-	// 	})
+	cmbProgram := widget.NewSelect(
+		[]string{"Natal", "Rastro", "Lâmpada"},
+		func(option string) {
+			if gotFirstValues {
+				res, err := wsclient.SetProgram(option)
+				if err != nil {
+					log.Printf("Erro: %v", err)
+					return
+				}
+				refreshState(res)
+			}
+		})
 
 	// Label representing the current program. Uses data binding.
-	lblProgram := widget.NewLabelWithData(bndProgram)
-	lblProgram.TextStyle = fyne.TextStyle{Italic: true}
+	//lblProgram := widget.NewLabelWithData(bndProgram)
+	//lblProgram.TextStyle = fyne.TextStyle{Italic: true}
 
 	// Button for cycling the current program
 	btnChangeProgram := widget.NewButtonWithIcon(
@@ -145,7 +151,7 @@ func main() {
 		})
 
 	// Color picker for setting up the lamp color
-	picker := colorpicker.New(200, colorpicker.StyleHue)
+	picker := colorpicker.New(200, colorpicker.StyleValue)
 	picker.SetOnChanged(func(c color.Color) {
 		if gotFirstValues {
 			lastColorValue = c
@@ -162,6 +168,7 @@ func main() {
 			chkBlink.SetChecked(status.Blinking)
 			sldDim.SetValue(dimToPercent(status.Dim))
 			picker.SetColor(status.Color)
+			cmbProgram.SetSelected(wsclient.GetProgramName(status.Program))
 			lastDimValue = status.Dim
 			lastColorValue = status.Color
 			gotFirstValues = true
@@ -217,7 +224,8 @@ func main() {
 
 		xlayout.Responsive(lblProgramacao, .35, .35),
 		//xlayout.Responsive(cmbProgram, 1, .55),
-		xlayout.Responsive(lblProgram, .55, .55),
+		//xlayout.Responsive(lblProgram, .55, .55),
+		xlayout.Responsive(cmbProgram, .55, .55),
 		xlayout.Responsive(btnChangeProgram, .1, .1),
 		xlayout.Responsive(widget.NewLabel(""), 1, 1),
 

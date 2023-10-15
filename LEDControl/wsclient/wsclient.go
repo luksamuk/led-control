@@ -113,6 +113,13 @@ func ChangeProgram() (Model, error) {
 	return parseBody(res, err)
 }
 
+func SetProgram(program string) (Model, error) {
+	url := fmt.Sprintf("%s/program/%d", BASEURL, GetProgramIndex(program))
+	log.Printf("POST %s", url)
+	res, err := http.Post(url, "", nil)
+	return parseBody(res, err)
+}
+
 func GetProgramName(program int) string {
 	switch program {
 	case 0:
@@ -123,5 +130,18 @@ func GetProgramName(program int) string {
 		return "Lâmpada"
 	default:
 		return "Desconhecido"
+	}
+}
+
+func GetProgramIndex(program string) int {
+	switch program {
+	case "Natal":
+		return 0
+	case "Rastro":
+		return 1
+	case "Lâmpada":
+		fallthrough
+	default:
+		return 2
 	}
 }
