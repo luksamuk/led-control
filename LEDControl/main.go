@@ -26,7 +26,6 @@ var (
 	gstatus        wsclient.Model
 	lastDimValue   float64
 	lastColorValue color.Color
-	modelColorPlaceholder color.Color // TODO: Replace with actual model
 )
 
 func percentToDim(value float64) float64 {
@@ -145,6 +144,14 @@ func main() {
 			refreshState(res)
 		})
 
+	// Color picker for setting up the lamp color
+	picker := colorpicker.New(200, colorpicker.StyleHue)
+	picker.SetOnChanged(func(c color.Color) {
+		if gotFirstValues {
+			lastColorValue = c
+		}
+	})
+	
 	// Behaviour for refreshing everything and obtaining the global status
 	// again from the remote device
 	refreshAll := func() {
@@ -154,7 +161,9 @@ func main() {
 			refreshState(status)
 			chkBlink.SetChecked(status.Blinking)
 			sldDim.SetValue(dimToPercent(status.Dim))
+			picker.SetColor(status.Color)
 			lastDimValue = status.Dim
+			lastColorValue = status.Color
 			gotFirstValues = true
 		} else {
 			log.Printf("Error: %v", err)
@@ -167,20 +176,26 @@ func main() {
 		theme.ViewRefreshIcon(),
 		refreshAll)
 
-	// Color picker for setting up the lamp color
-	picker := colorpicker.New(200, colorpicker.StyleValue)
-	picker.SetOnChanged(func(c color.Color) {
-		r, g, b, _ := c.RGBA()
-		lastColorValue = color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}
-	})
+	btnResetColor := widget.NewButtonWithIcon(
+		"Resetar Cor",
+		theme.ContentUndoIcon(),
+		func() {
+			white, _ := wsclient.ParseHexColor("ffffff")
+			picker.SetColor(white)
+		})
 
 	go func() {
 		for {
-			time.Sleep(200 * time.Millisecond)
-			if(lastColorValue != modelColorPlaceholder) {
-				log.Print("Color: ", lastColorValue)
-				//refreshState
-				modelColorPlaceholder = lastColorValue
+			if gotFirstValues {
+				time.Sleep(200 * time.Millisecond)
+				if wsclient.ColorToHex(lastColorValue) != wsclient.ColorToHex(gstatus.Color) {
+					res, err := wsclient.SetColor(lastColorValue)
+					if err != nil {
+						log.Printf("Erro: %v", err)
+						return
+					}
+					refreshState(res)
+				}
 			}
 		}
 	}()
@@ -206,7 +221,8 @@ func main() {
 		xlayout.Responsive(picker, 1, 1),
 		
 		xlayout.Responsive(widget.NewLabel(""), 1, 1),
-		xlayout.Responsive(btnRefreshAll, 1, 1),
+		xlayout.Responsive(btnRefreshAll, .5, .5),
+		xlayout.Responsive(btnResetColor, .5, .5),
 	)
 
 	// Application header and footer

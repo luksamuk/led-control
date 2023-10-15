@@ -5,6 +5,7 @@ go 1.21
 require (
 	fyne.io/fyne/v2 v2.4.1
 	fyne.io/x/fyne v0.0.0-20231004122445-c04c36b7acb1
+	github.com/crazy3lf/colorconv v1.2.0
 	github.com/lusingander/colorpicker v0.7.2
 )
 

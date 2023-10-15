@@ -6,17 +6,38 @@ import (
 	"errors"
 	"net/http"
 	"encoding/json"
+	"image/color"
+	"github.com/crazy3lf/colorconv"
 )
 
 type Model struct {
-	Blinking bool     `json:"blinking,omitempty"`
-	Program  int      `json:"program,omitempty"`
-	Dim      float64  `json:"dim,omitempty"`
+	Blinking bool        `json:"blinking,omitempty"`
+	Program  int         `json:"program,omitempty"`
+	Dim      float64     `json:"dim,omitempty"`
+	Strcolor string      `json:"color,omitempty"`
+	Color    color.Color
 }
 
 const (
 	BASEURL = "http://192.168.3.21/led"
 )
+
+func ParseHexColor(s string) (c color.NRGBA, err error) {
+    c.A = 255
+    switch len(s) {
+    case 6:
+        _, err = fmt.Sscanf(s, "%02x%02x%02x", &c.R, &c.G, &c.B)
+    case 3:
+        _, err = fmt.Sscanf(s, "%1x%1x%1x", &c.R, &c.G, &c.B)
+        // Double the hex digits:
+        c.R *= 17
+        c.G *= 17
+        c.B *= 17
+    default:
+        err = fmt.Errorf("invalid color length, must be 6 or 3")
+    }
+	return
+}
 
 func parseBody(res *http.Response, err error) (Model, error) {
 	var model Model
@@ -32,7 +53,21 @@ func parseBody(res *http.Response, err error) (Model, error) {
 	}
 
 	err = decoder.Decode(&model)
+	if err != nil {
+		return model, nil
+	}
+
+	newcolor, err := ParseHexColor(model.Strcolor)
+	if err != nil {
+		return Model{}, err
+	}
+
+	model.Color = newcolor
 	return model, nil
+}
+
+func ColorToHex(c color.Color) string {
+	return colorconv.ColorToHex(c)[2:]
 }
 
 func GetStatus() (Model, error) {
@@ -55,6 +90,13 @@ func SetAtivo(value bool) (Model, error) {
 
 func SetDimmer(value float64) (Model, error) {
 	url := fmt.Sprintf("%s/dim/%f", BASEURL, value)
+	log.Printf("POST %s", url)
+	res, err := http.Post(url, "", nil)
+	return parseBody(res, err)
+}
+
+func SetColor(c color.Color) (Model, error) {
+	url := fmt.Sprintf("%s/color/%s", BASEURL, ColorToHex(c))
 	log.Printf("POST %s", url)
 	res, err := http.Post(url, "", nil)
 	return parseBody(res, err)
