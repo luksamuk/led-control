@@ -102,9 +102,9 @@ O controle remoto foi projetado para que seja possível controlar o servidor de 
 
 Para compilar a aplicação, você precisa ter o compilador de Go 1.21.0 ou superior. Para compilar para o Android, instale Docker e a ferramenta [`fyne-cross`](https://github.com/fyne-io/fyne-cross).
 
-Comece abrindo o arquivo `LEDControl/wsclient/wsclient.go`. Altere a constante `BASEURL` para o IP fixo do seu Raspberry Pi Pico W.
+Comece abrindo o arquivo `internal/wsclient/wsclient.go`. Altere a constante `BASEURL` para o IP fixo do seu Raspberry Pi Pico W.
 
-Em seguida, para testar a aplicação, vá até a pasta `LEDControl` e execute:
+Em seguida, para testar a aplicação, execute:
 
 ```bash
 go run .
@@ -119,4 +119,10 @@ fyne-cross android \
     -app-id com.luksamuk.ledcontrol \
     -icon Icon.png
 ```
+
+*NOTA:* Para o Go 1.21.0, em 16/10/2023, a compilação com fyne-cross está quebrada.
+
+## Serviço Web
+
+Documentação em breve.
 

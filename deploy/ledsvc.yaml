@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledsvc
+  namespace: iot
+spec:
+  template:
+    metadata:
+      name: ledsvc
+      labels:
+        app: ledsvc
+    spec:
+      containers:
+        - name: ledsvc-container
+          image: luksamuk/ledsvc:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 2112
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ledsvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledsvc
+  namespace: iot
+spec:
+  type: ClusterIP
+  selector:
+    app: ledsvc
+  ports:
+    - port: 2112
