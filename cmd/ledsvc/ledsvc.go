@@ -32,7 +32,7 @@ var (
 	mtRequestDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name: "ledsvc_requests_duration",
 		Help: "A histogram for request duration",
-		Buckets: prometheus.LinearBuckets(0.5, .1, 10),
+		Buckets: prometheus.LinearBuckets(0.1, .1, 15),
 	})
 
 	mtLedStatus = promauto.NewGauge(prometheus.GaugeOpts{
