@@ -32,18 +32,35 @@ var (
 	mtRequestDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name: "ledsvc_requests_duration",
 		Help: "A histogram for request duration",
-		Buckets: prometheus.LinearBuckets(.05, .05, 100),
+		Buckets: prometheus.LinearBuckets(0.5, .1, 10),
+	})
+
+	mtLedStatus = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_status",
+		Help: "A gauge for LED status",
+	})
+
+	mtLedProgram = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_program",
+		Help: "A gauge for current LED program",
+	})
+
+	mtDimmer = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_dim",
+		Help: "A gauge for LED intensity",
 	})
 )
 
 
 func main() {
-	log.Print("Starting scheduler")
+	log.Print("Preparando coleta de métricas...")
+	
+	log.Print("Preparando scheduler...")
 	
 	c := cron.New()
 
 	c.AddFunc("@every 1m", func() {
-		log.Print("Running cronjob")
+		log.Print("Verificando status do dispositivo")
 
 		start := time.Now()
 		status, err := wsclient.GetStatus()
@@ -55,15 +72,28 @@ func main() {
 		
 		if err != nil {
 			mtErroredRequests.Inc()
+			log.Printf("Erro ao verificar status: %v", err)
 		} else {
 			mtSuccessfulRequests.Inc()
-			log.Print("Status: ", status)
-			log.Print("Duration: ", duration)
+
+			active := 1.0
+			dim := status.Dim
+			if !status.Blinking {
+				active = 0.0
+				dim = 0.0
+			}
+			mtLedStatus.Set(active)
+
+			
+			mtDimmer.Set(dim)
+			mtLedProgram.Set(float64(status.Program))
 		}
 	})
 
+	log.Print("Iniciando scheduler...")
 	c.Start()
 
+	log.Print("Iniciando servidor de métricas na porta :2112.")
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(":2112", nil)
 }
