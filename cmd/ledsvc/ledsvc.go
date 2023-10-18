@@ -59,6 +59,9 @@ func main() {
 	
 	c := cron.New()
 
+	mtLedProgram.Set(-1)
+	mtDimmer.Set(0)
+
 	c.AddFunc("@every 1m", func() {
 		log.Print("Verificando status do dispositivo")
 
@@ -78,15 +81,17 @@ func main() {
 
 			active := 1.0
 			dim := status.Dim
+			program := status.Program
 			if !status.Blinking {
 				active = 0.0
 				dim = 0.0
+				program = -1
 			}
 			mtLedStatus.Set(active)
 
 			
 			mtDimmer.Set(dim)
-			mtLedProgram.Set(float64(status.Program))
+			mtLedProgram.Set(float64(program))
 		}
 	})
 
