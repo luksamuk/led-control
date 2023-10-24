@@ -1,11 +1,12 @@
-.PHONY: dirs
+.PHONY: dirs clean
 
-all: android ledsvc
+all: dirs ledapp ledsvc android
 
 android:
 	fyne-cross android \
 		-app-id com.luksamuk.ledcontrol \
 		-icon Icon.png
+	mv fyne-cross/dist/android/*.apk bin/ledapp.apk
 
 ledapp:
 	go build -o bin/ledapp main.go
@@ -23,3 +24,7 @@ container-push:
 
 dirs:
 	@mkdir -p bin/
+
+clean:
+	rm -rf fyne-cross/
+
