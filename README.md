@@ -120,7 +120,7 @@ fyne-cross android \
     -icon Icon.png
 ```
 
-*NOTA:* Para o Go 1.21.0, em 16/10/2023, a compilação com fyne-cross está quebrada.
+*NOTA:* Para o Go 1.21.0, em 16/10/2023, a compilação com `fyne-cross` está quebrada. Recomendo instalar o `fyne-cross`, e instalar Go 1.20 [através da ferramenta GVM](https://github.com/moovweb/gvm).
 
 ## Serviço Web
 

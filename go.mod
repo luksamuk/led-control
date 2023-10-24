@@ -1,8 +1,6 @@
 module com.luksamuk.ledcontrol
 
-go 1.21.0
-
-toolchain go1.21.3
+go 1.20
 
 require (
 	com.luksamuk.ledcontrol/wsclient v0.0.0-00010101000000-000000000000
