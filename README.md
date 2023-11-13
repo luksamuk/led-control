@@ -4,11 +4,50 @@ Iluminação IoT usando LEDs NeoPixel, controle remoto e mudança automática de
 
 A intenção original era criar um sistema simples de iluminação dinâmica para o meu quarto, usando IoT, e também permitir controlar isso remotamente (já que não tenho interruptor próximo à minha cama...), além de mudar automaticamente a iluminação em certos momentos do dia.
 
-## Servidor no Raspberry Pi Pico W
+## MQTT Broker
+
+O primeiro passo é realizar o *deploy* de um broker MQTT, que receberá mensagens de controle e fará broadcast para o Raspberry Pi Pico W. Eu recomendo o projeto [Eclipse Mosquitto](https://mosquitto.org/).
+
+Pessoalmente, tenho um Raspberry Pi 4, que utilizo para hospedar todo tipo de serviço. Para facilitar esse processo, faço uso de uma variação de [Kubernetes](https://kubernetes.io/) chamada [K3s](https://k3s.io/), que foi feita especialmente para IoT e Edge Computing.
+
+### Gerando um usuário e senha para o Mosquitto
+
+O usuário padrão do Mosquitto que preparei é `admin`, e sua senha também é `admin`. Caso você queira trocar essas credenciais, execute os seguintes passos:
+
+1. Certifique-se de que o [Docker](https://www.docker.com/) esteja instalado no seu computador. Execute um console Linux usando a imagem do Eclipse Mosquitto com o seguinte comando:
+
+```bash
+docker run -it eclipse-mosquitto:latest /bin/sh
+```
+
+2. No console que abre, execute os seguintes comandos para gerar um novo usuário e uma nova senha.
+
+```bash
+mosquitto_passwd -c -b password.txt SEUUSUARIO SUASENHA
+cat password.txt
+exit
+```
+
+3. Se você estiver realizando deploy no Kubernetes como eu, copie o que for escrito na tela pelo segundo comando, e cole no arquivo `deploy/mosquitto/mosquitto-pw.yml`, substituindo as credenciais que já estão lá. **LEMBRE-SE, NUNCA ENVIE ESSAS CREDENCIAIS PARA O GITHUB, EM HIPÓTESE ALGUMA!**
+
+### Realizando deploy no K3s
+
+Para realizar deploy no K3s, certifique-se de que você pode acessar seu cluster usando o comando `kubectl`. Também certifique-se de que seu cluster possui um IP que seja acessível por dispositivos na sua rede -- no meu caso, meu Raspberry Pi 4, que está executando o K3s, opera com um IP fixo no meu roteador.
+
+Crie um namespace chamado `iot` (se não quiser esse nome, terá que alterar os arquivos de configuração). Aplique as alterações através do arquivo `kustomization.yml`:
+
+```bash
+kubectl apply -k deploy/mosquitto
+```
+
+Seu broker MQTT deverá estar acessível a partir desse momento, no IP do seu dispositivo, sob a rota `/mqtt`. Caso você precise de uma aplicação para testar e interagir, recomendo o [MQTTX](https://mqttx.app/).
+
+
+## Cliente no Raspberry Pi Pico W
 
 ![Exemplo do circuito de LEDs em execução](./img/neopixel2.gif)
 
-Vamos usar o Raspberry Pi Pico W como um servidor HTTP 1.1 e também como um controlador para os LEDs NeoPixel. Esse dispositivo possui uma antena Wi-Fi, por isso ele é ideal para um servidor HTTP IoT.
+Vamos usar o Raspberry Pi Pico W como um cliente MQTT e também como um controlador para os LEDs NeoPixel. Esse dispositivo possui uma antena Wi-Fi, por isso ele é ideal para um servidor HTTP IoT.
 
 ### Circuito
 
@@ -22,77 +61,44 @@ Os requisitos mínimos para montar o projeto são:
 
 A montagem pode ser feita de acordo com essa [esquemática](./img/breadboard.png).
 
+
 ### Instalação
 
 O projeto encontra-se na pasta `rpi-pico-w`.
 
 1. [Baixe a IDE Thonny](https://thonny.org/).
 2. [Conecte seu Raspberry Pi Pico W e instale o MicroPython](https://projects.raspberrypi.org/en/projects/get-started-pico-w/1).
-2. Vá ao menu `Ferramentas` > `Gerenciar pacotes`. Instale os pacotes `picozero` e `neopixel`.
-3. Abra o arquivo `main.py`. Altere as variáveis `SSID` e `PASSWD` para as suas credenciais do seu Wi-Fi.
-4. Você poderá executar a aplicação para testar nesse momento. Para fazer com que o MicroPython fique responsivo novamente, basta parar a aplicação.
-5. Após testar, selecione a opção para salvar o script, e salve-o no seu Raspberry Pi Pico W, *exatamente com o nome `main.py`*.
+3. Instale as dependências. Isso pode ser feito de duas formas:
+   - No Thonny, vá no menu `Ferramentas` > `Gerenciar pacotes`. Instale os pacotes `picozero`, `neopixel` e `umqtt.simple`; OU
+   - Abra o script `install-modules.py`, altere a chamada `wlan.connect(...)` para usar as credenciais do seu Wi-Fi, e execute esse script no seu Raspberry Pi Pico W.
+4. Abra o arquivo `main.py`. Altere as variáveis `SSID` e `PASSWD` para as suas credenciais do seu Wi-Fi.
+5. No mesmo arquivo, altere as variáveis `BROKER`, `BROKER_USER` e `BROKER_PASS` para o IP, o usuário e a senha do seu broker MQTT.
+6. Você poderá executar a aplicação para testar nesse momento. Para fazer com que o MicroPython fique responsivo novamente, basta parar a aplicação.
+7. Após testar, selecione a opção para salvar o script, e salve-o no seu Raspberry Pi Pico W, *exatamente com o nome `main.py`*.
 
-Caso você tenha acesso à sua configuração do roteador, recomendo definir um IP estático para o Raspberry Pi Pico W.
+O Raspberry Pi Pico W não precisa ter um IP fixo.
 
-### Comportamento e Rotas
+### Comportamento e tópicos
 
-Abaixo temos uma breve descrição dos comportamentos do servidor e das rotas que podem ser usadas.
+O Raspberry Pi Pico W conecta-se ao broker MQTT e escuta mensagens em tópicos cujo nome seja iniciado com `led/`.
 
-**Todas as rotas retornam um documento JSON** com o seguinte formato:
+Os tópicos escutados são:
 
-```json
-{
-    "blinking": true,
-    "program": 2,
-    "dim": 0.1474,
-    "color": "ffa648"
-}
-```
+- `led/active`: Interage com o status de ligado ou desligado dos LEDs, através dos números `0` (desligado) ou `1` (ligado).
+- `led/program`: Interage com a programação atual das luzes, sendo elas os números:
+  - `0`: Luzes de Natal.
+  - `1`: Rastro.
+  - `2`: Luz fixa (com cores customizáveis).
+- `led/dim`: Interage com o *dimmer*, que manipula a intensidade da luz. Espera-se um número entre `0.02` e `1`.
+- `led/color`: Interage com a cor da luz fixa, quando o programa `2` estiver sendo utilizado. A cor deve ser um valor hexadecimal RGB, no formato `ffffff`.
 
-- `blinking`: Se os LEDs estão ligados ou não.
-- `program`: Programa sendo executado. Os programas são sempre um dos números `0` (modo Natal), `1` (modo Rastro) e `2` (modo Lâmpada -- padrão).
-- `dim`: Nível de intensidade da luz. Deve ser um número entre `0.02` e `1.0`.
-- `color`: Cor atual dos LEDs (apenas para o modo Lâmpada). Trata-se de uma string com valores hexadecimais no formato `ffffff`.
+É possível mudar e ler as informações nesses tópicos através do broker. O único tópico no qual o Raspberry Pi Pico W publica alguma coisa é o `led/active`, já que o mesmo possui um *push button* que serve como interface física para ligar e desligar as luzes. Mesmo assim, lembre-se de que absolutamente todos o estado dos LEDs está condicionado única e exclusivamente às informações que o broker recebe.
 
-Os valores de `program`, `dim` e `color` podem ser alterados e retornados normalmente, mesmo que o LED esteja desativado. Igualmente, o valor de `color` também pode ser alterado e retornado, mesmo que o equipamento não esteja no modo Lâmpada.
-
-Caso você realize uma requisição em uma rota desconhecida, o servidor retornará um erro `404`.
-
-#### Status do servidor
-
-- `GET /led`
-
-Retorna o status da aplicação, sem realizar nenhuma modificação.
-
-#### Ligar/Desligar
-
-- `POST /led/on`
-- `POST /led/off`
-- `POST /led/toggle`
-
-Liga ou desliga os LEDs. Desligar os LEDs não desligará o servidor. A terceira rota inverte o estado atual de ligado/desligado.
-
-#### Mudar programação
-
-- `POST /led/program/{id}`
-- `POST /led/change`
-
-Muda a atual programação dos LEDs. A primeira rota coloca uma programação em específico, e a segunda muda para a próxima programação na ordem. O `id` dever corresponder ao número do programa, como descrito mais acima.
-
-#### Mudar intensidade
-
-- `POST /led/dim/{valor}`
-
-Muda a intensidade da luz dos LEDs, em qualquer modo. O `valor` deve ser um valor entre `0.02` e `1.0`.
-
-#### Mudar cor
-
-- `POST /led/color/{hex}`
-
-Define a cor dos LEDs, apenas para o modo Lâmpada. O `hex` deve ser uma cor em hexadecimal no formato `ffffff`.
+Para garantir que o dispositivo receba novamente o estado que possuía antes de ser desligado, caso seja removido da tomada, envie mensagens para estes tópicos com a *flag* `Retain` sempre ativada.
 
 ## Controle Remoto
+
+**ATENÇÃO: ESTA SEÇÃO ENCONTRA-SE OBSOLETA E SERÁ MUDADA ASSIM QUE O CONTROLE REMOTO USAR O PROTOCOLO MQTT.**
 
 ![Controle remoto para o servidor HTTP](./img/controle.png)
 
