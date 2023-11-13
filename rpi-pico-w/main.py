@@ -2,11 +2,11 @@ from machine import Pin
 from neopixel import NeoPixel
 from time import sleep, ticks_ms
 from picozero import pico_led
+from umqtt.simple import MQTTClient
 import network
-import socket
 import select
 import struct
-import binascii
+import ubinascii
 
 # Definitions for pins
 pin = Pin(28)
@@ -17,13 +17,19 @@ np = NeoPixel(pin, 30)
 programming = 2          # Default to lamp
 
 # Definitions for WiFi
-SSID   = 'CHANGEME'
-PASSWD = 'CHANGEME'
+SSID   = 'changeme'
+PASSWD = 'changeme'
 wlan   = network.WLAN(network.STA_IF)
 
-# Definitions for REST server
-rest_socket = None
-rest_poller = None
+# Definitions for MQTT Client
+BROKER      = 'changeme'
+BROKER_USER = 'changeme'
+BROKER_PASS = 'changeme'
+CLIENT_ID   = ubinascii.hexlify(machine.unique_id())
+TOPIC       = b'led/#'
+PUBTOPIC    = b'led/active' # Specific topic for switching on/off
+T_PREFIX    = TOPIC.decode('utf-8')[:-1]
+client      = MQTTClient(CLIENT_ID, BROKER, user=BROKER_USER, password=BROKER_PASS)
 
 # Global state
 blinking = True
@@ -86,6 +92,17 @@ def pressed():
     pressed_old = pressed_current
     return state
 
+# Toggle on/off (through MQTT messaging)
+# The state is subordinated to MQTT broker, so we need to broadcast the change
+# and wait for it to come back
+def toggle():
+    global PUBTOPIC
+    global client
+    global blinking
+    print('requesting status change...')
+    client.publish(PUBTOPIC, str(int(not blinking)).encode(), retain=True, qos=0)
+    print('requested')
+
 # Shut lights off
 def lights_off():
     global np
@@ -125,17 +142,14 @@ def set_program(programstr):
             lights_off()
     except:
         pass
-    
-# Routine for toggling state
-def toggle():
+
+# Change on/off state
+def set_blinking(value):
     global blinking
-    blinking = not blinking
+    print(f'set blinking: {value}')
+    blinking = value
     if not blinking:
         lights_off()
-
-# Routine for changing the program
-def cycle_program():
-    set_program((programming + 1) % 3)
         
 # Connect to the given WiFi network
 def wlan_connect(ssid, password):
@@ -152,76 +166,55 @@ def wlan_connect(ssid, password):
     pico_led.on()
     return ip
 
-# Create a REST socket. Returns a poller and the socket itself.
-def start_rest_socket(ip):
-    address = (ip, 80)
-    rest_socket = socket.socket()
-    rest_socket.bind(address)
-    rest_socket.listen(1)
-    poller = select.poll()
-    poller.register(rest_socket, select.POLLIN)
-    print(f'Socket listening to {address[0]}:{address[1]}.')
-    return (poller, rest_socket)
+# Dispatchers
+def dispatch_active(value):
+    set_blinking(value)
 
-# Functions for REST responses
-def respond_status(client):
-    global blinking
-    global dim
-    global programming
-    global prog2_color
-    value = 'true' if blinking else 'false'
-    color = binascii.hexlify(struct.pack('BBB', *prog2_color)).decode('utf-8')
-    client.send('HTTP/1.1 200 OK\r\n')
-    client.send('Content-Type: application/json\r\n')
-    client.send('Connection: close\r\n')
-    client.send(f'\n\r{{"blinking": {value}, "program": {programming}, "dim": {dim}, "color": "{color}"}}\r\n')
+def dispatch_color(c):
+    set_color(c)
 
-def respond_notfound(client):
-    client.send('HTTP/1.1 404 Not Found\r\n')
-    client.send('Connection: close\r\n')
+def dispatch_dimmer(value):
+    set_dim(value)
 
-# Poll and respond to REST events
-def poll_rest_event():
-    global rest_poller
-    global blinking
-    global programming
-    res = rest_poller.poll(16)
-    if res:
-        client = res[0][0].accept()[0]
-        request = client.recv(1024).decode('utf-8')
-        # Get first line
-        request = request.partition('\r\n')[0]
-        print(request)
-        if request.startswith('POST /led/toggle '):
-            toggle()
-            respond_status(client)
-        elif request.startswith('POST /led/change '):
-            cycle_program()
-            respond_status(client)
-        elif request.startswith('POST /led/on '):
-            blinking = True
-            respond_status(client)
-        elif request.startswith('POST /led/off '):
-            blinking = False
-            lights_off()
-            respond_status(client)
-        elif request.startswith('POST /led/dim/'):
-            trimright = str(request)[:-9]
-            set_dim(trimright[14:])
-            respond_status(client)
-        elif request.startswith('POST /led/color/'):
-            trimright = str(request)[:-9]
-            set_color(trimright[16:])
-            respond_status(client)
-        elif request.startswith('POST /led/program/'):
-            trimright = str(request)[:-9]
-            set_program(trimright[18:])
-            respond_status(client)
-        elif request.startswith('GET /led '):
-            respond_status(client)
+def dispatch_program(value):
+    set_program(value)
+
+# MQTT client callback
+def mqtt_callback(t, m):
+    global T_PREFIX
+    topic    = t.decode('utf-8')
+    message  = m.decode('utf-8')
+    subtopic = topic[len(T_PREFIX):]
+    try:
+        if subtopic == 'dim':
+            dispatch_dimmer(float(message))
+        elif subtopic == 'program':
+            dispatch_program(int(message))
+        elif subtopic == 'color':
+            dispatch_color(message)
+        elif subtopic == 'active':
+            dispatch_active(bool(int(message)))
         else:
-            respond_notfound(client)
-        client.close()
+            print('%s :: %s' % (topic, message))
+    except:
+        print('Error processing "%s :: %s"' % (topic, message))
+
+
+# Start MQTT client
+def start_client():
+    global client
+    global TOPIC
+    global BROKER
+    print(f'Connecting to MQTT Broker @ {BROKER}...')
+    client.set_callback(mqtt_callback)
+    client.connect()
+    print('Connected. Subscribing to topics on range %s...' % TOPIC.decode('utf-8'))
+    client.subscribe(TOPIC, qos=1)
+
+# Poll MQTT client events
+def poll_messages():
+    global client
+    client.check_msg()
 
 # INDEX
 i = 0
@@ -306,7 +299,7 @@ def blink_lights_loop():
         if pressed():
             toggle()
         # Execute REST events
-        poll_rest_event()
+        poll_messages()
 
 if __name__ == "__main__":
     try:
@@ -318,9 +311,9 @@ if __name__ == "__main__":
     
         # Connect to WiFi
         ip = wlan_connect(SSID, PASSWD)
-    
-        # Start REST server
-        rest_poller, rest_socket = start_rest_socket(ip)
+
+        # Start MQTT Client
+        start_client()
     
         # Run on non-interpreter thread
         print('Starting main loop')
