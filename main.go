@@ -15,13 +15,15 @@ import (
 	xlayout "fyne.io/x/fyne/layout"
 	"github.com/lusingander/colorpicker"
 
-	"com.luksamuk.ledcontrol/wsclient"
+	client "com.luksamuk.ledcontrol/brokerclient"
 )
+
+const APPNAME = "com.luksamuk.ledcontrol"
 
 var (
 	a              fyne.App
 	gotFirstValues bool
-	gstatus        wsclient.Model
+	gstatus        client.Model
 	lastDimValue   float64
 	lastColorValue color.Color
 )
@@ -52,27 +54,23 @@ func dimToPercent(value float64) float64 {
 
 func main() {
 	gotFirstValues = false
-	a = app.NewWithID("com.luksamuk.ledcontrol")
+	a = app.NewWithID(APPNAME)
 
 	a.Settings().SetTheme(xtheme.AdwaitaTheme())
-
+	
 	w := a.NewWindow("Controle de LED")
 
 	// Global function for refreshing the global state
-	refreshState := func(m wsclient.Model) {
-		gstatus = m
+	refreshState := func() {
+		gstatus = client.GetStatus()
 	}
 
 	// Active/inactive checkbox
 	chkBlink := widget.NewCheck("Ligado/Desligado", func(value bool) {
 		if gotFirstValues {
 			go func() {
-				res, err := wsclient.SetAtivo(value)
-				if err != nil {
-					log.Printf("Erro: %v", err)
-					return
-				}
-				refreshState(res)
+				client.SetAtivo(value)
+				refreshState()
 			}()
 		}
 	})
@@ -83,14 +81,16 @@ func main() {
 		actualValue := percentToDim(value)
 		if gotFirstValues {
 			lastDimValue = actualValue
+			refreshState()
 		}
 	}
 
 	// Dim service for asynchonously changing dim.
 	// This is made this way since the Raspberry Pi Pico W can't take a big
-	// load of requests. So instead of sending a request every time the slider
-	// changes, we perform requests with respect to the amount that the slider
-	// changed since the last time we sent a dim change request.
+	// load of changes, and we don't wanna fill the broker with messages.
+	// So instead of sending a message every time the slide changes, we
+	// send them with respect to the amount that the slider
+	// changed since the last time we sent a dim change.
 	go func() {
 		for {
 			diff := math.Abs(lastDimValue - gstatus.Dim)
@@ -104,12 +104,10 @@ func main() {
 				delta *= -1.0
 			}
 
-			res, err := wsclient.SetDimmer(gstatus.Dim + delta)
-			if err != nil {
-				log.Printf("Erro: %v", err)
-				continue
+			if err := client.SetDimmer(gstatus.Dim + delta); err != nil {
+				log.Printf("Error setting dimmer: %v", err)
 			}
-			refreshState(res)
+			refreshState()
 		}
 	}()
 
@@ -117,26 +115,9 @@ func main() {
 		[]string{"Natal", "Rastro", "Lâmpada"},
 		func(option string) {
 			if gotFirstValues {
-				res, err := wsclient.SetProgram(option)
-				if err != nil {
-					log.Printf("Erro: %v", err)
-					return
-				}
-				refreshState(res)
+				client.SetProgram(option)
+				refreshState()
 			}
-		})
-
-	// Button for cycling the current program
-	btnChangeProgram := widget.NewButtonWithIcon(
-		"",
-		theme.MediaReplayIcon(),
-		func() {
-			res, err := wsclient.ChangeProgram()
-			if err != nil {
-				log.Printf("Erro: %v", err)
-				return
-			}
-			refreshState(res)
 		})
 
 	// Color picker for setting up the lamp color
@@ -151,19 +132,14 @@ func main() {
 	// again from the remote device
 	refreshAll := func() {
 		gotFirstValues = false
-		status, err := wsclient.GetStatus()
-		if err == nil {
-			refreshState(status)
-			chkBlink.SetChecked(status.Blinking)
-			sldDim.SetValue(dimToPercent(status.Dim))
-			picker.SetColor(status.Color)
-			cmbProgram.SetSelected(wsclient.GetProgramName(status.Program))
-			lastDimValue = status.Dim
-			lastColorValue = status.Color
-			gotFirstValues = true
-		} else {
-			log.Printf("Error: %v", err)
-		}
+		refreshState()
+		chkBlink.SetChecked(gstatus.Blinking)
+		sldDim.SetValue(dimToPercent(gstatus.Dim))
+		picker.SetColor(gstatus.Color)
+		cmbProgram.SetSelected(client.GetProgramName(gstatus.Program))
+		lastDimValue = gstatus.Dim
+		lastColorValue = gstatus.Color
+		gotFirstValues = true
 	}
 
 	// Refresh global state button
@@ -176,7 +152,7 @@ func main() {
 		"Resetar Cor",
 		theme.ContentUndoIcon(),
 		func() {
-			white, _ := wsclient.ParseHexColor("ffffff")
+			white, _ := client.ParseHexColor("ffffff")
 			picker.SetColor(white)
 		})
 
@@ -187,13 +163,9 @@ func main() {
 		for {
 			if gotFirstValues {
 				time.Sleep(200 * time.Millisecond)
-				if wsclient.ColorToHex(lastColorValue) != wsclient.ColorToHex(gstatus.Color) {
-					res, err := wsclient.SetColor(lastColorValue)
-					if err != nil {
-						log.Printf("Erro: %v", err)
-						continue
-					}
-					refreshState(res)
+				if client.ColorToHex(lastColorValue) != client.ColorToHex(gstatus.Color) {
+					client.SetColor(lastColorValue)
+					refreshState()
 				}
 			}
 		}
@@ -209,8 +181,7 @@ func main() {
 		xlayout.Responsive(widget.NewLabel(""), .65, .65),
 
 		xlayout.Responsive(lblProgramacao, .35, .35),
-		xlayout.Responsive(cmbProgram, .55, .55),
-		xlayout.Responsive(btnChangeProgram, .1, .1),
+		xlayout.Responsive(cmbProgram, .65, .65),
 
 		xlayout.Responsive(lblIntensidade, 1, 1),
 		xlayout.Responsive(sldDim, 1, 1),
@@ -248,6 +219,10 @@ func main() {
 
 
 	// Perform first update on application launch
+	if err := client.Init(APPNAME); err != nil {
+		log.Printf("Error connecting to MQTT Broker: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
 	refreshAll()
 
 	w.Resize(fyne.NewSize(360, 640))
