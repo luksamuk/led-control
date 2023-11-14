@@ -6,8 +6,8 @@ import (
 	"image/color"
 	"strconv"
 	"github.com/crazy3lf/colorconv"
-	"github.com/denisbrodbeck/machineid"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
 )
 
 const (
@@ -37,11 +37,7 @@ var (
 
 // MQTT Configuration
 func Init(appname string) error {
-	id, err := machineid.ProtectedID(appname)
-	if err != nil {
-		return err
-	}
-
+	id := fmt.Sprintf("%s.%s", appname, uuid.New().String())
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(brokerurl)
 	opts.SetClientID(id)
