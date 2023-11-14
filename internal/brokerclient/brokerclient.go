@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	brokerurl  = "tcp://192.168.3.6:1883"
+	brokerurl  = "192.168.3.6:1883"
 	brokeruser = "admin"
 	brokerpw   = "admin"
 	brokersub  = "led/#"

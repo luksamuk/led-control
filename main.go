@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 	"math"
@@ -11,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"fyne.io/fyne/v2/container"
 	xtheme "fyne.io/x/fyne/theme"
 	xlayout "fyne.io/x/fyne/layout"
 	"github.com/lusingander/colorpicker"
@@ -60,6 +62,23 @@ func main() {
 	
 	w := a.NewWindow("Controle de LED")
 
+	// Log scroll pane
+	logwindow := widget.NewTextGrid()
+	scrollpane := container.NewScroll(logwindow)
+
+	// Logging function
+	logappend := func(text string) {
+		log.Print(text)
+		logwindow.SetText(logwindow.Text() + "\n" + text)
+		scrollpane.ScrollToBottom()
+	}
+
+	logerr := func(err error) {
+		if err != nil {
+			logappend(fmt.Sprintf("[!] %v", err))
+		}
+	}
+
 	// Global function for refreshing the global state
 	refreshState := func() {
 		gstatus = client.GetStatus()
@@ -69,7 +88,7 @@ func main() {
 	chkBlink := widget.NewCheck("Ligado/Desligado", func(value bool) {
 		if gotFirstValues {
 			go func() {
-				client.SetAtivo(value)
+				logerr(client.SetAtivo(value))
 				refreshState()
 			}()
 		}
@@ -104,9 +123,7 @@ func main() {
 				delta *= -1.0
 			}
 
-			if err := client.SetDimmer(gstatus.Dim + delta); err != nil {
-				log.Printf("Error setting dimmer: %v", err)
-			}
+			logerr(client.SetDimmer(gstatus.Dim + delta))
 			refreshState()
 		}
 	}()
@@ -115,7 +132,7 @@ func main() {
 		[]string{"Natal", "Rastro", "Lâmpada"},
 		func(option string) {
 			if gotFirstValues {
-				client.SetProgram(option)
+				logerr(client.SetProgram(option))
 				refreshState()
 			}
 		})
@@ -164,7 +181,7 @@ func main() {
 			if gotFirstValues {
 				time.Sleep(200 * time.Millisecond)
 				if client.ColorToHex(lastColorValue) != client.ColorToHex(gstatus.Color) {
-					client.SetColor(lastColorValue)
+					logerr(client.SetColor(lastColorValue))
 					refreshState()
 				}
 			}
@@ -205,7 +222,8 @@ func main() {
 	)
 
 	footer := xlayout.NewResponsiveLayout(
-		xlayout.Responsive(widget.NewLabel(""), 1, 1),
+		//xlayout.Responsive(widget.NewLabel(""), 1, 1),
+		xlayout.Responsive(scrollpane, 1, 1),
 	)
 
 	content := fyne.NewContainerWithLayout(
@@ -219,9 +237,7 @@ func main() {
 
 
 	// Perform first update on application launch
-	if err := client.Init(APPNAME); err != nil {
-		log.Printf("Error connecting to MQTT Broker: %v", err)
-	}
+	logerr(client.Init(APPNAME))
 	time.Sleep(500 * time.Millisecond)
 	refreshAll()
 
