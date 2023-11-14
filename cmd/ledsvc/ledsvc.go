@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"com.luksamuk.ledcontrol/wsclient"
+	client "com.luksamuk.ledcontrol/brokerclient"
 )
 
 var (
@@ -53,6 +53,12 @@ var (
 
 
 func main() {
+	log.Print("Conectando ao Broker MQTT...")
+	if err := client.Init("com.luksamuk.ledcontrol/ledsvc"); err != nil {
+		log.Fatalf("Não foi possível conectar ao broker: %v", err)
+	}
+	time.Sleep(time.Second)
+	
 	log.Print("Preparando coleta de métricas...")
 	
 	log.Print("Preparando scheduler...")
@@ -62,37 +68,32 @@ func main() {
 	mtLedProgram.Set(-1)
 	mtDimmer.Set(0)
 
-	c.AddFunc("@every 1m", func() {
+	c.AddFunc("@every 10s", func() {
 		log.Print("Verificando status do dispositivo")
 
 		start := time.Now()
-		status, err := wsclient.GetStatus()
+		status := client.GetStatus()
 		elapsed := time.Since(start)
 		duration := elapsed.Seconds()
 		
 		mtReqsPerformed.Inc()
 		mtRequestDuration.Observe(duration)
 		
-		if err != nil {
-			mtErroredRequests.Inc()
-			log.Printf("Erro ao verificar status: %v", err)
-		} else {
-			mtSuccessfulRequests.Inc()
+		mtSuccessfulRequests.Inc()
 
-			active := 1.0
-			dim := status.Dim
-			program := status.Program
-			if !status.Blinking {
-				active = 0.0
-				dim = 0.0
-				program = -1
-			}
-			mtLedStatus.Set(active)
-
-			
-			mtDimmer.Set(dim)
-			mtLedProgram.Set(float64(program))
+		active := 1.0
+		dim := status.Dim
+		program := status.Program
+		if !status.Blinking {
+			active = 0.0
+			dim = 0.0
+			program = -1
 		}
+		mtLedStatus.Set(active)
+
+		
+		mtDimmer.Set(dim)
+		mtLedProgram.Set(float64(program))
 	})
 
 	log.Print("Iniciando scheduler...")
