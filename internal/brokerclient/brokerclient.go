@@ -14,7 +14,6 @@ const (
 	brokerurl  = "192.168.3.6:1883"
 	brokeruser = "admin"
 	brokerpw   = "admin"
-	brokersub  = "led/#"
 	brokerqos  = 1
 )
 
@@ -41,8 +40,15 @@ func Init(appname string) error {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(brokerurl)
 	opts.SetClientID(id)
-	opts.SetUsername(brokeruser)
-	opts.SetPassword(brokerpw)
+
+	if brokeruser != "" {
+		opts.SetUsername(brokeruser)
+	}
+
+	if brokerpw != "" {
+		opts.SetPassword(brokerpw)
+	}
+	
 	opts.SetDefaultPublishHandler(mqttPublishHandler)
 	opts.OnConnect = mqttConnectHandler
 	opts.OnConnectionLost = mqttConnectionLostHandler
@@ -55,8 +61,8 @@ func Init(appname string) error {
 		return conntoken.Error()
 	}
 
-	log.Printf("Subscribing to %s (QOS=%d)...", brokersub, brokerqos)
-	subtoken := mClient.Subscribe(brokersub, brokerqos, nil)
+	log.Printf("Subscribing to led/# (QOS=%d)...", brokerqos)
+	subtoken := mClient.Subscribe("led/#", brokerqos, nil)
 	subtoken.Wait()
 
 	log.Print("MQTT config finished.")

@@ -11,29 +11,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	client "com.luksamuk.ledcontrol/brokerclient"
+	"github.com/crazy3lf/colorconv"
 )
 
 var (
-	mtReqsPerformed = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "ledsvc_requests_performed",
-		Help: "Total number of requests performed by the service",
-	})
-
-	mtSuccessfulRequests = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "ledsvc_successful_requests",
-		Help: "Total number of successful requests",
-	})
-
-	mtErroredRequests = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "ledsvc_error_requests",
-		Help: "Total number of requests resulting in errors",
-	})
-
-	mtRequestDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Name: "ledsvc_requests_duration",
-		Help: "A histogram for request duration",
-		Buckets: prometheus.LinearBuckets(0.1, .1, 15),
-	})
 
 	mtLedStatus = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "ledsvc_status",
@@ -48,6 +29,36 @@ var (
 	mtDimmer = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "ledsvc_dim",
 		Help: "A gauge for LED intensity",
+	})
+
+	mtColorRed = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_rgb_red",
+		Help: "Intensity of red on current color on the [0.0, 1.0] range",
+	})
+
+	mtColorGreen = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_rgb_green",
+		Help: "Intensity of green on current color on the [0.0, 1.0] range",
+	})
+
+	mtColorBlue = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_rgb_blue",
+		Help: "Intensity of blue on current color on the [0.0, 1.0] range",
+	})
+
+	mtColorHue = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_hsv_hue",
+		Help: "Hue of current color on the [0.0, 1.0] range",
+	})
+	
+	mtColorSaturation = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_hsv_saturation",
+		Help: "Saturation of current color on the [0.0, 1.0] range",
+	})
+
+	mtColorBrightness = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ledsvc_hsv_brightness",
+		Help: "Brightness (value) of current color on the [0.0, 1.0] range",
 	})
 )
 
@@ -69,17 +80,9 @@ func main() {
 	mtDimmer.Set(0)
 
 	c.AddFunc("@every 10s", func() {
-		log.Print("Verificando status do dispositivo")
+		log.Print("Atualizando métricas")
 
-		start := time.Now()
 		status := client.GetStatus()
-		elapsed := time.Since(start)
-		duration := elapsed.Seconds()
-		
-		mtReqsPerformed.Inc()
-		mtRequestDuration.Observe(duration)
-		
-		mtSuccessfulRequests.Inc()
 
 		active := 1.0
 		dim := status.Dim
@@ -89,11 +92,27 @@ func main() {
 			dim = 0.0
 			program = -1
 		}
-		mtLedStatus.Set(active)
-
 		
+		mtLedStatus.Set(active)
 		mtDimmer.Set(dim)
 		mtLedProgram.Set(float64(program))
+
+		if !status.Blinking || (status.Program != 2) {
+			mtColorRed.Set(0.0)
+			mtColorGreen.Set(0.0)
+			mtColorBlue.Set(0.0)
+		} else {
+			r, g, b, _ := status.Color.RGBA()
+			h, s, v := colorconv.ColorToHSV(status.Color)
+			
+			mtColorRed.Set(float64(r) / 65535.0)
+			mtColorGreen.Set(float64(g) / 65535.0)
+			mtColorBlue.Set(float64(b) / 65535.0)
+
+			mtColorHue.Set(h / 360.0)
+			mtColorSaturation.Set(s)
+			mtColorBrightness.Set(v)
+		}
 	})
 
 	log.Print("Iniciando scheduler...")
@@ -103,3 +122,4 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(":2112", nil)
 }
+
