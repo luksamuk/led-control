@@ -101,6 +101,9 @@ func main() {
 			mtColorRed.Set(0.0)
 			mtColorGreen.Set(0.0)
 			mtColorBlue.Set(0.0)
+			mtColorHue.Set(0.0)
+			mtColorSaturation.Set(0.0)
+			mtColorBrightness.Set(0.0)
 		} else {
 			r, g, b, _ := status.Color.RGBA()
 			h, s, v := colorconv.ColorToHSV(status.Color)
