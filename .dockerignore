@@ -2,3 +2,8 @@
 *#*#
 fyne-cross/
 bin/
+deploy/
+*.md
+Dockerfile
+rpi-pico-w/
+docker-compose.yml

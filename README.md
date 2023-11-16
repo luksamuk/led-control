@@ -98,17 +98,22 @@ Para garantir que o dispositivo receba novamente o estado que possuía antes de 
 
 ## Controle Remoto
 
-**ATENÇÃO: ESTA SEÇÃO ENCONTRA-SE OBSOLETA E SERÁ MUDADA ASSIM QUE O CONTROLE REMOTO USAR O PROTOCOLO MQTT.**
+![Controle remoto para os LEDs](./img/controle.png)
 
-![Controle remoto para o servidor HTTP](./img/controle.png)
-
-O controle remoto foi projetado para que seja possível controlar o servidor de LEDs remotamente, interagindo via requisições HTTP, especialmente pelo celular Android, mas também pode ser utilizado no desktop ou em outros sistemas. Ele funcionará normalmente caso você esteja conectado à mesma rede do seu Raspberry Pi Pico W.
+O controle remoto foi projetado para que seja possível controlar o servidor de LEDs remotamente, interagindo via mensagens MQTT, especialmente pelo celular Android, mas também pode ser utilizado no desktop ou em outros sistemas. Ele funcionará normalmente caso você esteja conectado à mesma rede do seu broker MQTT.
 
 ### Testando a aplicação
 
-Para compilar a aplicação, você precisa ter o compilador de Go 1.21.0 ou superior. Para compilar para o Android, instale Docker e a ferramenta [`fyne-cross`](https://github.com/fyne-io/fyne-cross).
+Para compilar a aplicação, você precisa ter o compilador de Go 1.20.0. Recomendo instalar a versão específica de Go usando a ferramenta [Go Version Manager](https://github.com/moovweb/gvm).
 
-Comece abrindo o arquivo `internal/wsclient/wsclient.go`. Altere a constante `BASEURL` para o IP fixo do seu Raspberry Pi Pico W.
+Para compilar para o Android, instale Docker e a ferramenta [`fyne-cross`](https://github.com/fyne-io/fyne-cross).
+
+Comece abrindo o arquivo `internal/brokerclient/brokerclient.go`. Altere as seguintes variávels de acordo com seu uso:
+
+- `brokerurl`: URL do broker MQTT, com a porta do broker (ex: `192.168.2.2:1883`).
+- `brokeruser`: Usuário para acesso ao broker. Caso não haja, deixar vazio.
+- `brokerpw`: Senha para acesso ao broker. Caso não haja, deixar vazio.
+- `brokerqos`: Qualidade de serviço (QoS) das mensagens sendo enviadas ao broker.
 
 Em seguida, para testar a aplicação, execute:
 
@@ -126,9 +131,12 @@ fyne-cross android \
     -icon Icon.png
 ```
 
-*NOTA:* Para o Go 1.21.0, em 16/10/2023, a compilação com `fyne-cross` está quebrada. Recomendo instalar o `fyne-cross`, e instalar Go 1.20 [através da ferramenta GVM](https://github.com/moovweb/gvm).
-
-## Serviço Web
+## Monitoramento e coleta de métricas (`ledsvc`)
 
 Documentação em breve.
 
+## Serviço automático web (`ledctl`)
+
+O objetivo desse serviço é ser uma espécie de "piloto automático" para os LEDs, modificando-os de acordo com horário ou predefinições variadas.
+
+Em breve.
